@@ -209,8 +209,10 @@ select:focus {
 }
 
 .modal-panel {
+  max-width: 100%;
   max-height: min(92vh, 900px);
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
   border: 1px solid var(--border);
   border-radius: 14px;
   background: #12161b;

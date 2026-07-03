@@ -16,26 +16,26 @@ export function mountResultModal(root: HTMLElement, ctx: UIContext): void {
     const positive = trade.pnl >= 0;
     root.innerHTML = `<div class="modal-backdrop">
       <div class="modal-panel w-[min(920px,100%)]">
-        <div class="grid gap-5 p-5 pb-[calc(20px+env(safe-area-inset-bottom))] md:grid-cols-[1fr_390px] md:pb-5">
-          <div class="rounded-xl border ${positive ? "border-long/35 bg-long/10" : "border-short/35 bg-short/10"} p-5">
-            <div class="flex items-start justify-between">
-              <div>
-                <div class="text-sm font-black uppercase ${positive ? "text-long" : "text-short"}">${positive ? "Trade closed in profit" : "Trade closed in loss"}</div>
-                <div class="mt-3 font-mono text-6xl font-black leading-none ${positive ? "text-long" : "text-short"}">${formatSignedCurrency(trade.pnl)}</div>
-                <div class="mt-3 font-mono text-4xl font-black ${positive ? "text-long" : "text-short"}">${formatSignedPercent(trade.roiPct)}</div>
+        <div class="grid min-w-0 gap-4 p-3 pb-[calc(16px+env(safe-area-inset-bottom))] sm:gap-5 sm:p-5 sm:pb-[calc(20px+env(safe-area-inset-bottom))] md:grid-cols-[minmax(0,1fr)_minmax(300px,390px)] md:pb-5">
+          <div class="min-w-0 rounded-xl border ${positive ? "border-long/35 bg-long/10" : "border-short/35 bg-short/10"} p-4 sm:p-5">
+            <div class="flex min-w-0 items-start justify-between gap-3">
+              <div class="min-w-0">
+                <div class="text-xs font-black uppercase sm:text-sm ${positive ? "text-long" : "text-short"}">${positive ? "Trade closed in profit" : "Trade closed in loss"}</div>
+                <div class="mt-3 max-w-full whitespace-nowrap font-mono text-[clamp(2rem,10vw,3.75rem)] font-black leading-none tracking-normal sm:text-6xl ${positive ? "text-long" : "text-short"}">${formatSignedCurrency(trade.pnl)}</div>
+                <div class="mt-3 max-w-full whitespace-nowrap font-mono text-[clamp(1.75rem,8vw,2.25rem)] font-black leading-tight tracking-normal sm:text-4xl ${positive ? "text-long" : "text-short"}">${formatSignedPercent(trade.roiPct)}</div>
               </div>
-              <button class="btn btn-ghost grid !h-9 !w-9 place-items-center !p-0" data-close-result aria-label="Close result modal">${icon("close")}</button>
+              <button class="btn btn-ghost grid !h-9 !w-9 shrink-0 place-items-center !p-0" data-close-result aria-label="Close result modal">${icon("close")}</button>
             </div>
-            <div class="mt-8 text-2xl font-black">${positive ? "GG. You're basically a hedge fund now." : "Diamond hands? More like paper."}</div>
-            <div class="mt-2 text-sm font-semibold text-secondary">Export the receipt, flex the simulation, then remember none of this is real money.</div>
-            <div class="mt-8 grid grid-cols-2 gap-3">
-              <button class="btn btn-primary flex items-center justify-center gap-2" data-download-card>${icon("download")} Download PNG</button>
-              <button class="btn btn-ghost flex items-center justify-center gap-2" data-copy-card>${icon("copy")} Copy image</button>
-              <button class="btn btn-ghost flex items-center justify-center gap-2" data-native-share>${icon("share")} Share</button>
-              <button class="btn btn-ghost flex items-center justify-center gap-2" data-x-share>${icon("x")} Share to X</button>
+            <div class="mt-7 text-xl font-black leading-tight sm:mt-8 sm:text-2xl">${positive ? "GG. You're basically a hedge fund now." : "Diamond hands? More like paper."}</div>
+            <div class="mt-2 text-sm font-semibold leading-6 text-secondary">Export the receipt, flex the simulation, then remember none of this is real money.</div>
+            <div class="mt-7 grid grid-cols-1 gap-2 sm:mt-8 sm:grid-cols-2 sm:gap-3">
+              <button class="btn btn-primary flex min-w-0 items-center justify-center gap-2 whitespace-nowrap" data-download-card>${icon("download")} Download PNG</button>
+              <button class="btn btn-ghost flex min-w-0 items-center justify-center gap-2 whitespace-nowrap" data-copy-card>${icon("copy")} Copy image</button>
+              <button class="btn btn-ghost flex min-w-0 items-center justify-center gap-2 whitespace-nowrap" data-native-share>${icon("share")} Share</button>
+              <button class="btn btn-ghost flex min-w-0 items-center justify-center gap-2 whitespace-nowrap" data-x-share>${icon("x")} Share to X</button>
             </div>
           </div>
-          <div class="grid place-items-center overflow-hidden">${shareCardMarkup(trade)}</div>
+          <div class="grid min-w-0 place-items-center overflow-hidden">${shareCardMarkup(trade)}</div>
         </div>
       </div>
     </div>`;

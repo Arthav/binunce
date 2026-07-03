@@ -103,7 +103,7 @@ export function mountLayout(root: HTMLElement, ctx: UIContext): void {
     const derived = deriveAccount(state);
     const pnlColor =
       derived.totalUnrealizedPnl > 0 ? "text-long shadow-win" : derived.totalUnrealizedPnl < 0 ? "text-short shadow-loss" : "text-primary";
-    navRoot.innerHTML = `<div class="grid min-h-[72px] grid-cols-[auto_1fr_auto] items-center gap-2 px-3 py-2 lg:flex lg:min-h-14 lg:gap-3 lg:px-4 lg:py-0">
+    navRoot.innerHTML = `<div class="grid min-h-[98px] grid-cols-[minmax(0,1fr)_auto] items-center gap-2 px-3 py-2 sm:min-h-[72px] sm:grid-cols-[auto_minmax(0,1fr)_auto] lg:flex lg:min-h-14 lg:gap-3 lg:px-4 lg:py-0">
       <div class="flex min-w-0 items-center gap-2">
         <div class="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-brand text-lg font-black text-black">B</div>
         <div class="min-w-0">
@@ -112,14 +112,14 @@ export function mountLayout(root: HTMLElement, ctx: UIContext): void {
         </div>
       </div>
       <div class="hidden min-w-0 text-xs font-bold text-secondary md:block">${state.selectedSymbol} synthetic perpetual</div>
-      <div class="min-w-0 text-center lg:ml-auto lg:flex lg:items-center lg:gap-3 lg:text-right">
+      <div class="col-span-2 min-w-0 text-center sm:col-span-1 lg:ml-auto lg:flex lg:items-center lg:gap-3 lg:text-right">
         <div class="hidden text-right sm:block">
           <div class="text-[10px] font-black uppercase text-secondary">Wallet</div>
           <div class="font-mono text-sm font-black">${formatCurrency(derived.walletBalance)}</div>
         </div>
         <div class="min-w-0">
           <div class="text-[10px] font-black uppercase text-secondary">Equity / Unrealized</div>
-          <div class="max-w-[150px] overflow-hidden font-mono text-2xl font-black leading-tight sm:max-w-none sm:text-4xl ${pnlColor}">
+          <div class="mx-auto max-w-full overflow-hidden font-mono text-[clamp(1.45rem,7vw,2rem)] font-black leading-tight tracking-normal sm:max-w-none sm:text-4xl lg:mx-0 ${pnlColor}">
             ${tickerMarkup(formatCurrency(derived.equity))}
           </div>
           <div class="font-mono text-xs font-black ${derived.totalUnrealizedPnl >= 0 ? "text-long" : "text-short"}">${formatSignedCurrency(derived.totalUnrealizedPnl)} / ${formatSignedPercent(derived.marginUsed > 0 ? (derived.totalUnrealizedPnl / derived.marginUsed) * 100 : 0)}</div>
