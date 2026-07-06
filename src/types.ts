@@ -1,6 +1,7 @@
 export type Side = "long" | "short";
 export type CloseReason = "manual" | "tp" | "sl" | "liquidation";
 export type DepositMethod = "card" | "crypto" | "bank" | "instant";
+export type OrderType = "market" | "limit";
 export type ChartType = "candles" | "area";
 export type VolatilityMode = "normal" | "insane";
 export type Timeframe = "1s" | "5s" | "15s" | "1m";
@@ -116,6 +117,8 @@ export interface AppState {
   tradeSide: Side;
   timeframe: Timeframe;
   mobileTab: "markets" | "chart" | "trade" | "positions";
+  positionsPanelTab: "positions" | "history";
+  closeReview: { positionId: string; fraction: number } | null;
   account: Account;
   deposits: Deposit[];
   positions: Position[];
@@ -123,6 +126,7 @@ export interface AppState {
   settings: Settings;
   prices: Record<string, AssetPriceState>;
   lastClosedTrade: Trade | null;
+  lastOpenedPosition: Position | null;
   topupOpen: boolean;
   onboardingOpen: boolean;
   settingsOpen: boolean;

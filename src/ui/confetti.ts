@@ -10,11 +10,34 @@ interface Particle {
   color: string;
 }
 
+interface BurstProfile {
+  count: number;
+  originX: number;
+  originY: number;
+  spreadX: number;
+  spreadY: number;
+  velocityX: number;
+  velocityY: number;
+  sizeBase: number;
+  sizeRange: number;
+  lifeBase: number;
+  lifeRange: number;
+  gravity: number;
+}
+
+export function clearConfetti(): void {
+  document.querySelectorAll(".confetti-canvas").forEach((canvas) => canvas.remove());
+}
+
 export function burstConfetti(tone: Tone): void {
   if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
 
+  const isMobile = window.matchMedia("(max-width: 767px)").matches;
+  const profile = getBurstProfile(tone, isMobile);
   const canvas = document.createElement("canvas");
   canvas.className = "confetti-canvas";
+  canvas.dataset.tone = tone;
+  canvas.setAttribute("aria-hidden", "true");
   canvas.width = window.innerWidth * devicePixelRatio;
   canvas.height = window.innerHeight * devicePixelRatio;
   document.body.append(canvas);
@@ -32,14 +55,13 @@ export function burstConfetti(tone: Tone): void {
         ? ["#F0B90B", "#0ECB81", "#EAECEF", "#8d6d06"]
         : ["#0ECB81", "#F0B90B", "#EAECEF", "#14f1a0"];
 
-  const count = tone === "liquidation" ? 130 : 90;
-  const particles: Particle[] = Array.from({ length: count }, () => ({
-    x: window.innerWidth / 2 + (Math.random() - 0.5) * 240,
-    y: tone === "liquidation" ? 90 + Math.random() * 120 : window.innerHeight * 0.38,
-    vx: (Math.random() - 0.5) * (tone === "liquidation" ? 18 : 12),
-    vy: (Math.random() - 0.75) * (tone === "liquidation" ? 12 : 16),
-    size: 3 + Math.random() * 8,
-    life: 0.85 + Math.random() * 0.7,
+  const particles: Particle[] = Array.from({ length: profile.count }, () => ({
+    x: profile.originX + (Math.random() - 0.5) * profile.spreadX,
+    y: profile.originY + (Math.random() - 0.5) * profile.spreadY,
+    vx: (Math.random() - 0.5) * profile.velocityX,
+    vy: (Math.random() - 0.75) * profile.velocityY,
+    size: profile.sizeBase + Math.random() * profile.sizeRange,
+    life: profile.lifeBase + Math.random() * profile.lifeRange,
     color: palette[Math.floor(Math.random() * palette.length)],
   }));
 
@@ -50,7 +72,7 @@ export function burstConfetti(tone: Tone): void {
     ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
     particles.forEach((particle) => {
       particle.life -= dt;
-      particle.vy += 22 * dt;
+      particle.vy += profile.gravity * dt;
       particle.x += particle.vx;
       particle.y += particle.vy;
       ctx.globalAlpha = Math.max(0, particle.life);
@@ -64,4 +86,72 @@ export function burstConfetti(tone: Tone): void {
     }
   };
   requestAnimationFrame(animate);
+}
+
+function getBurstProfile(tone: Tone, isMobile: boolean): BurstProfile {
+  if (tone === "liquidation") {
+    return {
+      count: 130,
+      originX: window.innerWidth / 2,
+      originY: 150,
+      spreadX: 240,
+      spreadY: 120,
+      velocityX: 18,
+      velocityY: 12,
+      sizeBase: 3,
+      sizeRange: 8,
+      lifeBase: 0.85,
+      lifeRange: 0.7,
+      gravity: 22,
+    };
+  }
+
+  if (isMobile && tone === "cash") {
+    return {
+      count: 28,
+      originX: 143,
+      originY: 90,
+      spreadX: 170,
+      spreadY: 72,
+      velocityX: 5,
+      velocityY: 6,
+      sizeBase: 2,
+      sizeRange: 4,
+      lifeBase: 0.24,
+      lifeRange: 0.18,
+      gravity: 16,
+    };
+  }
+
+  if (isMobile) {
+    return {
+      count: 36,
+      originX: window.innerWidth / 2,
+      originY: 82,
+      spreadX: Math.min(180, window.innerWidth * 0.48),
+      spreadY: 44,
+      velocityX: 5.5,
+      velocityY: 6.5,
+      sizeBase: 2,
+      sizeRange: 4,
+      lifeBase: 0.3,
+      lifeRange: 0.22,
+      gravity: 15,
+    };
+  }
+
+  return {
+    count: 90,
+    originX: window.innerWidth / 2,
+    originY: window.innerHeight * 0.38,
+    spreadX: 240,
+    spreadY: 0,
+    velocityX: 12,
+    velocityY: 16,
+    sizeBase: 3,
+    sizeRange: 8,
+    lifeBase: 0.85,
+    lifeRange: 0.7,
+    gravity: 22,
+  };
 }

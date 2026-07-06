@@ -6,6 +6,7 @@ import { getTriggeredCloseReason } from "./engine/liquidation";
 import {
   buildPosition,
   calculateFee,
+  calculateLiquidationPrice,
   calculatePositionPnl,
   maxMarginForBalance,
 } from "./engine/pnl";
@@ -33,7 +34,7 @@ const closingIds = new Set<string>();
 const actions: AppActions = {
   selectSymbol(symbol) {
     engine.setActiveSymbol(symbol);
-    store.set({ selectedSymbol: symbol, mobileTab: "chart" });
+    store.set({ selectedSymbol: symbol, mobileTab: "chart", closeReview: null });
     playSfx("click");
   },
   setTimeframe(timeframe) {
@@ -41,11 +42,28 @@ const actions: AppActions = {
     playSfx("click");
   },
   setMobileTab(tab) {
-    store.set({ mobileTab: tab });
+    store.set({ mobileTab: tab, closeReview: tab === "positions" ? store.get().closeReview : null });
     playSfx("click");
   },
+  setPositionsPanelTab(tab) {
+    store.set({ positionsPanelTab: tab, closeReview: tab === "positions" ? store.get().closeReview : null });
+    playSfx("click");
+  },
+  reviewClosePosition(positionId, fraction) {
+    const safeFraction = clamp(fraction, 0.1, 1);
+    if (!store.get().positions.some((position) => position.id === positionId)) return;
+    store.set({
+      closeReview: { positionId, fraction: safeFraction },
+      mobileTab: "positions",
+      positionsPanelTab: "positions",
+    });
+    playSfx("click");
+  },
+  clearCloseReview() {
+    store.set({ closeReview: null });
+  },
   setTradeSide(side) {
-    store.set({ tradeSide: side, mobileTab: "trade" });
+    store.set({ tradeSide: side, mobileTab: "trade", closeReview: null });
     playSfx("click");
   },
   openTopup() {
@@ -83,7 +101,12 @@ const actions: AppActions = {
     const derived = deriveAccount(state);
     const margin = roundMoney(clamp(input.margin, 1, maxMarginForBalance(derived.freeMargin)));
     const leverage = Math.round(clamp(input.leverage, 1, 1000));
-    const validation = validateTriggers(input.side, markPrice, input.tpPrice, input.slPrice);
+    const entryPrice = input.orderType === "limit" ? input.limitPrice : markPrice;
+    if (!entryPrice || !Number.isFinite(entryPrice) || entryPrice <= 0) {
+      actions.toast("Limit price must be a positive price.", "error");
+      return;
+    }
+    const validation = validateTriggers(input.side, entryPrice, input.tpPrice, input.slPrice);
     if (validation) {
       actions.toast(validation, "error");
       return;
@@ -93,7 +116,7 @@ const actions: AppActions = {
       side: input.side,
       margin,
       leverage,
-      entryPrice: markPrice,
+      entryPrice,
       tpPrice: input.tpPrice,
       slPrice: input.slPrice,
     });
@@ -103,13 +126,72 @@ const actions: AppActions = {
       return;
     }
     const next = runtime.repo.openPosition(position, debit);
-    applySnapshot(next);
+    applySnapshot(next, { mobileTab: "positions", positionsPanelTab: "positions", closeReview: null, lastOpenedPosition: position, toasts: [] });
     engine.setPositions(next.positions);
     playSfx("click");
-    actions.toast(`Position opened: ${position.side.toUpperCase()} ${position.symbol} ${position.leverage}x`, "success");
+  },
+  updatePositionTriggers(positionId, tpPrice, slPrice) {
+    const state = store.get();
+    const position = state.positions.find((item) => item.id === positionId);
+    if (!position) {
+      actions.toast("Position is no longer open.", "error");
+      return false;
+    }
+    const markPrice = state.prices[position.symbol]?.price ?? position.entryPrice;
+    const validation = validateOpenPositionTriggers(position.side, markPrice, tpPrice, slPrice);
+    if (validation) {
+      actions.toast(validation, "error");
+      return false;
+    }
+    const next = runtime.repo.updatePositionTriggers(position.id, tpPrice, slPrice);
+    applySnapshot(next, { closeReview: null });
+    engine.setPositions(next.positions);
+    actions.toast(tpPrice === null && slPrice === null ? "TP / SL cleared." : "TP / SL updated.", "success");
+    playSfx("click");
+    return true;
+  },
+  addMarginToPosition(positionId, amount) {
+    const state = store.get();
+    const position = state.positions.find((item) => item.id === positionId);
+    if (!position) {
+      actions.toast("Position is no longer open.", "error");
+      return false;
+    }
+    const derived = deriveAccount(state);
+    const safeAmount = roundMoney(amount);
+    const maxAdd = roundMoney(Math.min(derived.freeMargin, Math.max(0, position.notional - position.margin)));
+    if (!Number.isFinite(safeAmount) || safeAmount < 1) {
+      actions.toast("Add at least $1 margin.", "error");
+      return false;
+    }
+    if (maxAdd < 1) {
+      actions.toast("This position is already near 1x margin.", "warning");
+      return false;
+    }
+    if (safeAmount > maxAdd) {
+      actions.toast(`Add up to ${new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(maxAdd)} margin.`, "error");
+      return false;
+    }
+    const nextMargin = roundMoney(position.margin + safeAmount);
+    const nextLeverage = Math.max(1, position.notional / nextMargin);
+    const nextPosition: Position = {
+      ...position,
+      margin: nextMargin,
+      leverage: nextLeverage,
+      liqPrice: calculateLiquidationPrice(position.entryPrice, position.side, nextLeverage),
+    };
+    const next = runtime.repo.addMarginToPosition(nextPosition, safeAmount);
+    applySnapshot(next, { closeReview: null });
+    engine.setPositions(next.positions);
+    actions.toast(`Added ${new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(safeAmount)} margin to ${position.symbol}.`, "success");
+    playSfx("click");
+    return true;
   },
   closePosition(position, reason, fraction = 1) {
     closePosition(position, reason, fraction);
+  },
+  closeOpenReceipt() {
+    store.set({ lastOpenedPosition: null });
   },
   openResult(trade) {
     store.set({ lastClosedTrade: trade, resultOpen: true });
@@ -138,6 +220,8 @@ const actions: AppActions = {
       resultOpen: false,
       liquidationTrade: null,
       lastClosedTrade: null,
+      lastOpenedPosition: null,
+      closeReview: null,
       onboardingOpen: false,
     });
     actions.toast("Account reset. Wallet is back to $0.", "warning");
@@ -288,6 +372,7 @@ function closePosition(position: Position, reason: Trade["closeReason"], fractio
       lastClosedTrade: trade,
       resultOpen: reason !== "liquidation",
       liquidationTrade: reason === "liquidation" ? trade : store.get().liquidationTrade,
+      closeReview: null,
       toasts: [],
     });
     if (reason === "liquidation") {
@@ -340,6 +425,12 @@ function validateTriggers(
   tpPrice: number | null,
   slPrice: number | null,
 ): string | null {
+  if (tpPrice !== null && (!Number.isFinite(tpPrice) || tpPrice <= 0)) {
+    return "Take-profit must be a positive price.";
+  }
+  if (slPrice !== null && (!Number.isFinite(slPrice) || slPrice <= 0)) {
+    return "Stop-loss must be a positive price.";
+  }
   if (tpPrice !== null && Number.isFinite(tpPrice)) {
     if (side === "long" && tpPrice <= entryPrice) return "Take-profit must be above entry for longs.";
     if (side === "short" && tpPrice >= entryPrice) return "Take-profit must be below entry for shorts.";
@@ -347,6 +438,29 @@ function validateTriggers(
   if (slPrice !== null && Number.isFinite(slPrice)) {
     if (side === "long" && slPrice >= entryPrice) return "Stop-loss must be below entry for longs.";
     if (side === "short" && slPrice <= entryPrice) return "Stop-loss must be above entry for shorts.";
+  }
+  return null;
+}
+
+function validateOpenPositionTriggers(
+  side: Position["side"],
+  markPrice: number,
+  tpPrice: number | null,
+  slPrice: number | null,
+): string | null {
+  if (tpPrice !== null && (!Number.isFinite(tpPrice) || tpPrice <= 0)) {
+    return "Take-profit must be a positive price.";
+  }
+  if (slPrice !== null && (!Number.isFinite(slPrice) || slPrice <= 0)) {
+    return "Stop-loss must be a positive price.";
+  }
+  if (tpPrice !== null && Number.isFinite(tpPrice)) {
+    if (side === "long" && tpPrice <= markPrice) return "Take-profit must be above live mark for longs.";
+    if (side === "short" && tpPrice >= markPrice) return "Take-profit must be below live mark for shorts.";
+  }
+  if (slPrice !== null && Number.isFinite(slPrice)) {
+    if (side === "long" && slPrice >= markPrice) return "Stop-loss must be below live mark for longs.";
+    if (side === "short" && slPrice <= markPrice) return "Stop-loss must be above live mark for shorts.";
   }
   return null;
 }

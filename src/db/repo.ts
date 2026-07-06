@@ -30,6 +30,8 @@ export interface BinunceRepo {
     credit: number,
     highWatermark: number,
   ): RepoSnapshot;
+  addMarginToPosition(position: Position, debit: number): RepoSnapshot;
+  updatePositionTriggers(positionId: string, tpPrice: number | null, slPrice: number | null): RepoSnapshot;
   updateSettings(settings: Partial<Settings>): RepoSnapshot;
   updateDisplayName(displayName: string): RepoSnapshot;
   reset(): RepoSnapshot;
@@ -141,6 +143,32 @@ export class SqliteRepo implements BinunceRepo {
       );
       this.insertTrade(trade);
       this.updateAccountAfterTrade(trade, credit, highWatermark);
+    });
+    return this.afterMutation();
+  }
+
+  updatePositionTriggers(positionId: string, tpPrice: number | null, slPrice: number | null): RepoSnapshot {
+    this.db.run(`UPDATE position SET tp_price = ?, sl_price = ? WHERE id = ?;`, [
+      tpPrice,
+      slPrice,
+      positionId,
+    ]);
+    return this.afterMutation();
+  }
+
+  addMarginToPosition(position: Position, debit: number): RepoSnapshot {
+    this.transaction(() => {
+      this.db.run(`UPDATE account SET balance = MAX(0, balance - ?) WHERE id = 1;`, [
+        roundMoney(debit),
+      ]);
+      this.db.run(
+        `UPDATE position
+         SET margin = ?,
+             leverage = ?,
+             liq_price = ?
+         WHERE id = ?;`,
+        [position.margin, position.leverage, position.liqPrice, position.id],
+      );
     });
     return this.afterMutation();
   }
@@ -422,6 +450,21 @@ export class MemoryRepo implements BinunceRepo {
       .concat(remaining);
     this.snapshot.trades = [trade, ...this.snapshot.trades].slice(0, 250);
     this.applyTrade(trade, credit, highWatermark);
+    return this.load();
+  }
+
+  updatePositionTriggers(positionId: string, tpPrice: number | null, slPrice: number | null): RepoSnapshot {
+    this.snapshot.positions = this.snapshot.positions.map((position) =>
+      position.id === positionId ? { ...position, tpPrice, slPrice } : position,
+    );
+    return this.load();
+  }
+
+  addMarginToPosition(position: Position, debit: number): RepoSnapshot {
+    this.snapshot.account.balance = roundMoney(Math.max(0, this.snapshot.account.balance - debit));
+    this.snapshot.positions = this.snapshot.positions.map((item) =>
+      item.id === position.id ? { ...item, margin: position.margin, leverage: position.leverage, liqPrice: position.liqPrice } : item,
+    );
     return this.load();
   }
 
